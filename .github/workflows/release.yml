@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v-*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check CHANGELOG.md updated
+      run: |
+        if ! git diff HEAD~1 HEAD --name-only | grep -q "CHANGELOG.md"; then
+          echo "Error: CHANGELOG.md must be updated before release"
+          exit 1
+        fi
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Build release binaries
+      run: cargo build --release --all
+    
+    - name: Extract version from tag
+      id: extract_version
+      run: echo "version=${GITHUB_REF#refs/tags/v-}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.extract_version.outputs.version }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          target/release/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
