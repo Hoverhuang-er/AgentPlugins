@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mol3D Viewer - WASM Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: #333;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 0;
+        }
+        .viewer-panel {
+            padding: 20px;
+            border-right: 1px solid #ddd;
+        }
+        .chat-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #mol3d-canvas {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            min-height: 400px;
+            max-height: 500px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .message.user {
+            background: #e3f2fd;
+            text-align: right;
+        }
+        .message.assistant {
+            background: #f1f8e9;
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .controls button {
+            flex: 1;
+            background: #28a745;
+        }
+        .controls button:hover {
+            background: #218838;
+        }
+        .info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        .molecule-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .molecule-info h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Mol3D Viewer</h1>
+            <p>WASM-Powered 3D Molecule Visualization</p>
+        </div>
+        <div class="content">
+            <div class="viewer-panel">
+                <h2>Molecule Viewer</h2>
+                <canvas id="mol3d-canvas" width="800" height="500"></canvas>
+                <div class="controls">
+                    <button onclick="createWater()">Show Water (H₂O)</button>
+                    <button onclick="createPhenytoin()">Show Phenytoin</button>
+                </div>
+                <div class="molecule-info" id="molecule-info" style="display: none;">
+                    <h3>Current Molecule</h3>
+                    <div id="molecule-details"></div>
+                </div>
+                <div class="info">
+                    <strong>Instructions:</strong><br>
+                    - Type a molecule description in the chat<br>
+                    - Click buttons for quick examples<br>
+                    - Using real WASM module with Rust backend!
+                </div>
+            </div>
+            <div class="chat-panel">
+                <h2>AI Chat</h2>
+                <div class="chat-messages" id="messages"></div>
+                <div class="input-area">
+                    <input 
+                        type="text" 
+                        id="user-input" 
+                        placeholder="Describe a molecule or paste SMILES..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { MolViewer } from './pkg/mol3d.js';
+
+        let viewer = null;
+        let wasmReady = false;
+
+        // Initialize WASM
+        async function initWasm() {
+            try {
+                await init();
+                viewer = new MolViewer('mol3d-canvas');
+                wasmReady = true;
+                console.log('WASM module loaded successfully!');
+                addMessage('assistant', '<strong>🎉 WASM Module Loaded!</strong><br><br>Real Rust-powered molecule viewer is ready. Try these:<br>• "Show me water"<br>• "Generate phenytoin molecule"<br>• Paste SMILES: CN1C(=NC(C1=O)(c2ccccc2)c3ccccc3)N');
+            } catch (err) {
+                console.error('Failed to initialize WASM:', err);
+                addMessage('assistant', '❌ Failed to load WASM module: ' + err.message);
+            }
+        }
+
+        function addMessage(role, content) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.innerHTML = content;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showMoleculeInfo(name, formula, smiles, atomCount, bondCount) {
+            const infoDiv = document.getElementById('molecule-info');
+            const detailsDiv = document.getElementById('molecule-details');
+            
+            detailsDiv.innerHTML = `
+                <strong>Name:</strong> ${name}<br>
+                <strong>Formula:</strong> ${formula}<br>
+                ${smiles ? `<strong>SMILES:</strong> <code>${smiles}</code><br>` : ''}
+                <strong>Atoms:</strong> ${atomCount}<br>
+                <strong>Bonds:</strong> ${bondCount}
+            `;
+            infoDiv.style.display = 'block';
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage('user', message);
+            input.value = '';
+
+            if (!wasmReady) {
+                addMessage('assistant', 'WASM module is still loading, please wait...');
+                return;
+            }
+
+            // Check for SMILES structure pattern (Phenytoin)
+            if (message.includes('CN1C(=NC(C1=O)(c2ccccc2)c3ccccc3)N') || 
+                message.toLowerCase().includes('phenytoin')) {
+                createPhenytoin();
+                addMessage('assistant', '<strong>Generated Phenytoin!</strong><br>Displaying the molecule structure using WASM rendering.');
+            } else if (message.toLowerCase().includes('water') || message.toLowerCase().includes('h2o')) {
+                createWater();
+                addMessage('assistant', 'Generated water molecule (H₂O) using WASM!');
+            } else {
+                addMessage('assistant', 'I can visualize molecules! Try:<br>• "Show me water"<br>• "Generate phenytoin molecule"<br>• Paste: CN1C(=NC(C1=O)(c2ccccc2)c3ccccc3)N');
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        window.createWater = function() {
+            if (!wasmReady || !viewer) {
+                addMessage('assistant', 'WASM not ready yet...');
+                return;
+            }
+            
+            try {
+                viewer.create_water_molecule();
+                viewer.render();
+                showMoleculeInfo('Water', 'H₂O', '', 3, 2);
+                addMessage('assistant', '✅ Created water molecule using WASM!');
+            } catch (err) {
+                addMessage('assistant', '❌ Error: ' + err.message);
+            }
+        };
+
+        window.createPhenytoin = function() {
+            if (!wasmReady || !viewer) {
+                addMessage('assistant', 'WASM not ready yet...');
+                return;
+            }
+            
+            try {
+                const phenytoin = {
+                    name: 'Phenytoin (Diphenylhydantoin)',
+                    formula: 'C15H12N2O2',
+                    smiles: 'CN1C(=NC(C1=O)(c2ccccc2)c3ccccc3)N',
+                    atoms: [
+                        { element: 'C', x: 0, y: 0, z: 0, color: [144, 144, 144] },
+                        { element: 'N', x: 1.2, y: 0.5, z: 0, color: [48, 80, 248] },
+                        { element: 'C', x: 2.0, y: -0.5, z: 0, color: [144, 144, 144] },
+                        { element: 'N', x: 1.5, y: -1.7, z: 0, color: [48, 80, 248] },
+                        { element: 'C', x: 0.2, y: -1.4, z: 0, color: [144, 144, 144] },
+                        { element: 'O', x: -0.8, y: -2.2, z: 0, color: [255, 13, 13] },
+                        { element: 'C', x: 3.5, y: -0.3, z: 0, color: [144, 144, 144] },
+                        { element: 'C', x: 4.3, y: -1.4, z: 0, color: [144, 144, 144] },
+                        { element: 'C', x: -1.0, y: 0.8, z: 0, color: [144, 144, 144] },
+                        { element: 'C', x: -1.8, y: -0.3, z: 0, color: [144, 144, 144] },
+                        { element: 'C', x: 2.0, y: -2.9, z: 0, color: [144, 144, 144] },
+                    ],
+                    bonds: [
+                        { atom1_idx: 0, atom2_idx: 1, bond_type: 1 },
+                        { atom1_idx: 1, atom2_idx: 2, bond_type: 2 },
+                        { atom1_idx: 2, atom2_idx: 3, bond_type: 1 },
+                        { atom1_idx: 3, atom2_idx: 4, bond_type: 1 },
+                        { atom1_idx: 4, atom2_idx: 0, bond_type: 1 },
+                        { atom1_idx: 4, atom2_idx: 5, bond_type: 2 },
+                        { atom1_idx: 2, atom2_idx: 6, bond_type: 1 },
+                        { atom1_idx: 6, atom2_idx: 7, bond_type: 1 },
+                        { atom1_idx: 0, atom2_idx: 8, bond_type: 1 },
+                        { atom1_idx: 8, atom2_idx: 9, bond_type: 1 },
+                        { atom1_idx: 3, atom2_idx: 10, bond_type: 1 },
+                    ]
+                };
+
+                const jsonStr = JSON.stringify(phenytoin);
+                viewer.load_molecule(jsonStr);
+                viewer.render();
+                
+                showMoleculeInfo(
+                    'Phenytoin (Diphenylhydantoin)',
+                    'C₁₅H₁₂N₂O₂',
+                    'CN1C(=NC(C1=O)(c2ccccc2)c3ccccc3)N',
+                    phenytoin.atoms.length,
+                    phenytoin.bonds.length
+                );
+                
+                addMessage('assistant', '<strong>✅ Created Phenytoin using WASM!</strong><br><br>This is an anticonvulsant medication used to treat epilepsy. The molecule structure is rendered using our Rust WASM backend.');
+            } catch (err) {
+                console.error('Error creating phenytoin:', err);
+                addMessage('assistant', '❌ Error: ' + err.message);
+            }
+        };
+
+        window.sendMessage = sendMessage;
+        window.handleKeyPress = handleKeyPress;
+
+        // Initialize on load
+        addMessage('assistant', '⏳ Loading WASM module...');
+        initWasm();
+    </script>
+</body>
+</html>
